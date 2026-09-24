@@ -81,14 +81,15 @@ def retrieve_relevant_chunks(query, index, chunks, top_k=3):
 
 
 def generate_llm_answer(groq_api_key, context_chunks, question):
-    """Step 5: Send context and user question to Groq API."""
-    # Ensure key is clean with no leading/trailing whitespace
+    """Step 5: Send context and user question to Groq API using standard SDK pattern."""
     clean_key = groq_api_key.strip()
     
-    if not clean_key:
-        raise ValueError("Groq API Key is empty. Please enter your key in the sidebar.")
+    # Store key in environment variable as requested
+    os.environ["GROQ_API_KEY"] = clean_key
 
-    client = Groq(api_key=clean_key)
+    client = Groq(
+        api_key=os.environ.get("GROQ_API_KEY"),
+    )
 
     context_str = "\n\n---\n\n".join(context_chunks)
 
@@ -102,16 +103,13 @@ def generate_llm_answer(groq_api_key, context_chunks, question):
 
     user_prompt = f"Context:\n{context_str}\n\nQuestion: {question}"
 
-    # Explicitly targeted valid model identifier
-    target_model = "llama-3.3-70b-versatile"
-
+    # llama-3.1-8b-instant is active and available on all free Groq accounts
     chat_completion = client.chat.completions.create(
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        model=target_model,
-        temperature=0.1,
+        model="llama-3.1-8b-instant",
     )
 
     return chat_completion.choices[0].message.content
