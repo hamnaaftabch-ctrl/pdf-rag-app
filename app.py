@@ -1,4 +1,5 @@
 import os
+import tempfile
 import numpy as np
 import streamlit as st
 from pypdf import PdfReader
@@ -30,7 +31,7 @@ def load_embedding_model():
 
 embedding_model = load_embedding_model()
 
-
+# Helper Functions
 def extract_text_from_pdf(pdf_file):
     """Step 1: Extract raw text from the uploaded PDF file."""
     reader = PdfReader(pdf_file)
@@ -80,12 +81,14 @@ def retrieve_relevant_chunks(query, index, chunks, top_k=3):
 
 
 def generate_llm_answer(groq_api_key, context_chunks, question):
-    """Step 5: Send context and user question to Groq API using standard SDK syntax."""
-    # Set the environment variable or pass directly
-    os.environ["GROQ_API_KEY"] = groq_api_key
-    client = Groq(
-        api_key=os.environ.get("GROQ_API_KEY")
-    )
+    """Step 5: Send context and user question to Groq API."""
+    # Ensure key is clean with no leading/trailing whitespace
+    clean_key = groq_api_key.strip()
+    
+    if not clean_key:
+        raise ValueError("Groq API Key is empty. Please enter your key in the sidebar.")
+
+    client = Groq(api_key=clean_key)
 
     context_str = "\n\n---\n\n".join(context_chunks)
 
@@ -99,14 +102,18 @@ def generate_llm_answer(groq_api_key, context_chunks, question):
 
     user_prompt = f"Context:\n{context_str}\n\nQuestion: {question}"
 
+    # Explicitly targeted valid model identifier
+    target_model = "llama-3.3-70b-versatile"
+
     chat_completion = client.chat.completions.create(
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        model="llama-3.3-70b-versatile",
+        model=target_model,
+        temperature=0.1,
     )
-    
+
     return chat_completion.choices[0].message.content
 
 
@@ -149,8 +156,8 @@ if st.session_state.vector_db is not None:
     user_query = st.chat_input("Ask something about the uploaded document...")
 
     if user_query:
-        if not groq_api_key:
-            st.warning("Please enter your Groq API Key in the sidebar to proceed.")
+        if not groq_api_key or not groq_api_key.strip():
+            st.warning("⚠️ Please enter a valid Groq API Key in the sidebar before asking questions.")
         else:
             # Display user prompt
             st.session_state.chat_history.append({"role": "user", "content": user_query})
@@ -159,20 +166,23 @@ if st.session_state.vector_db is not None:
 
             with st.chat_message("assistant"):
                 with st.spinner("Searching document & generating answer..."):
-                    # Retrieve context and call LLM
-                    retrieved_context = retrieve_relevant_chunks(
-                        user_query, st.session_state.vector_db, st.session_state.chunks
-                    )
-                    answer = generate_llm_answer(groq_api_key, retrieved_context, user_query)
+                    try:
+                        retrieved_context = retrieve_relevant_chunks(
+                            user_query, st.session_state.vector_db, st.session_state.chunks
+                        )
+                        answer = generate_llm_answer(groq_api_key, retrieved_context, user_query)
 
-                    st.markdown(answer)
+                        st.markdown(answer)
 
-                    # Show retrieved context in an expander for transparency
-                    with st.expander("🔍 View Retrieved Context Chunks"):
-                        for i, chunk in enumerate(retrieved_context, 1):
-                            st.write(f"**Chunk {i}:**")
-                            st.caption(chunk)
+                        # Show retrieved context in an expander for transparency
+                        with st.expander("🔍 View Retrieved Context Chunks"):
+                            for i, chunk in enumerate(retrieved_context, 1):
+                                st.write(f"**Chunk {i}:**")
+                                st.caption(chunk)
 
-            st.session_state.chat_history.append({"role": "assistant", "content": answer})
+                        st.session_state.chat_history.append({"role": "assistant", "content": answer})
+
+                    except Exception as e:
+                        st.error(f"An error occurred: {str(e)}")
 else:
     st.info("👈 Please upload a PDF file and click **Process Document** in the sidebar to begin.")
