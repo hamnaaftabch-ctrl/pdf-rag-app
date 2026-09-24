@@ -80,8 +80,11 @@ def retrieve_relevant_chunks(query, index, chunks, top_k=3):
 
 
 def generate_llm_answer(groq_api_key, context_chunks, question):
-    """Step 5: Send context and user question to Groq API using Llama 3.3 70B."""
-    client = Groq(api_key=groq_api_key)
+    """Step 5: Send context and user question to Groq API using a valid model."""
+    client = Groq(
+        api_key=groq_api_key,
+        base_url="https://api.groq.com/openai/v1"
+    )
 
     context_str = "\n\n---\n\n".join(context_chunks)
 
@@ -95,8 +98,9 @@ def generate_llm_answer(groq_api_key, context_chunks, question):
 
     user_prompt = f"Context:\n{context_str}\n\nQuestion: {question}"
 
+    # Use an active, fully-qualified model ID
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.3-70b-versatile",  # Or "openai/gpt-oss-120b"
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
