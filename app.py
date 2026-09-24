@@ -80,10 +80,11 @@ def retrieve_relevant_chunks(query, index, chunks, top_k=3):
 
 
 def generate_llm_answer(groq_api_key, context_chunks, question):
-    """Step 5: Send context and user question to Groq API using a valid model."""
+    """Step 5: Send context and user question to Groq API using standard SDK syntax."""
+    # Set the environment variable or pass directly
+    os.environ["GROQ_API_KEY"] = groq_api_key
     client = Groq(
-        api_key=groq_api_key,
-        base_url="https://api.groq.com/openai/v1"
+        api_key=os.environ.get("GROQ_API_KEY")
     )
 
     context_str = "\n\n---\n\n".join(context_chunks)
@@ -98,16 +99,15 @@ def generate_llm_answer(groq_api_key, context_chunks, question):
 
     user_prompt = f"Context:\n{context_str}\n\nQuestion: {question}"
 
-    # Use an active, fully-qualified model ID
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",  # Or "openai/gpt-oss-120b"
+    chat_completion = client.chat.completions.create(
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        temperature=0.1,
+        model="llama-3.3-70b-versatile",
     )
-    return response.choices[0].message.content
+    
+    return chat_completion.choices[0].message.content
 
 
 # --- Streamlit UI Components ---
